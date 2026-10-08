@@ -1,26 +1,121 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-cream: #fcfbf9;
+  --color-cream-subtle: #f5f3ef;
+  --color-dark: #171717;
+  --color-dark-card: #222222;
+  --color-accent-indigo: #4338ca;
+  --color-border-subtle: #e5e5e5;
+  
+  --font-serif: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  
+  --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #fcfbf9;
+  --foreground: #171717;
+  --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #fcfbf9;
+  color: #171717;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
 }
+
+/* Seluruh font dialihkan ke tipe Sans-Serif murni */
+.font-serif, [class*="font-serif"],
+.font-mono, [class*="font-mono"],
+.font-sans, [class*="font-sans"] {
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
+/* Tracking mono tetap dipertahankan untuk label fungsional */
+.font-mono, [class*="font-mono"] {
+  letter-spacing: 0.32em;
+}
+
+/* Animasi Design System */
+@keyframes mesh-drift {
+  0% {
+    transform: rotate(0deg) scale(1) translate(0px, 0px);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.15) translate(40px, -30px);
+  }
+  100% {
+    transform: rotate(360deg) scale(1) translate(0px, 0px);
+  }
+}
+
+@keyframes pulse-cta {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(67, 56, 202, 0.35);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 25px 8px rgba(67, 56, 202, 0.35);
+  }
+}
+
+@keyframes blink-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+}
+
+.animate-mesh-drift {
+  animation: mesh-drift 30s linear infinite;
+}
+
+.animate-pulse-cta {
+  animation: pulse-cta 3s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.animate-blink-dot {
+  animation: blink-dot 2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+/* Easing Premium Token helper */
+.ease-premium {
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Wave Container & Curve */
+.wave-container {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 25vh;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.wave-curve {
+  width: 120%;
+  height: 200%;
+  background: #fcfbf9;
+  border-radius: 50% 50% 0 0;
+  transform: translate(-10%, 20%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
