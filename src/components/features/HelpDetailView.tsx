@@ -20,6 +20,8 @@ export function HelpDetailView({ initialRequest }: HelpDetailViewProps) {
 
   const [request, setRequest] = useState<HelpRequest>(initialRequest);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [volunteerCompleted, setVolunteerCompleted] = useState(
     initialRequest.status === 'selesai'
   );
@@ -30,8 +32,7 @@ export function HelpDetailView({ initialRequest }: HelpDetailViewProps) {
   const isOwner = user && user.id === request.user_id;
   const isSelesai = request.status === 'selesai';
 
-
-  const handleVolunteer = async () => {
+  const handleOpenVolunteerModal = () => {
     if (!user) {
       router.push(`/login?redirect=/bantuan/${request.id}`);
       return;
@@ -47,6 +48,10 @@ export function HelpDetailView({ initialRequest }: HelpDetailViewProps) {
       return;
     }
 
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmVolunteer = async () => {
     setIsSubmitting(true);
     track('volunteer_click', { request_id: request.id, category: request.category });
 
@@ -64,7 +69,7 @@ export function HelpDetailView({ initialRequest }: HelpDetailViewProps) {
           .from('help_requests')
           .update({
             status: 'selesai',
-            helper_id: user.id,
+            helper_id: user?.id,
           })
           .eq('id', request.id);
 
@@ -76,14 +81,14 @@ export function HelpDetailView({ initialRequest }: HelpDetailViewProps) {
       const returnedContact =
         (data as unknown as { contact?: string } | null)?.contact || request.contact;
 
-
       setRequest((prev) => ({
         ...prev,
         status: 'selesai',
-        helper_id: user.id,
+        helper_id: user?.id ?? null,
       }));
       setRevealedContact(returnedContact);
       setVolunteerCompleted(true);
+      setShowConfirmModal(false);
 
       success(
         'Terima Kasih, Relawan Hebat!',
@@ -94,6 +99,19 @@ export function HelpDetailView({ initialRequest }: HelpDetailViewProps) {
       error('Terjadi Kesalahan', msg);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCopyContact = async () => {
+    const textToCopy = revealedContact || request.contact;
+    if (!textToCopy) return;
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopied(true);
+      success('Tersalin!', 'Nomor kontak berhasil disalin ke papan klip.');
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // fallback
     }
   };
 
@@ -196,26 +214,33 @@ export function HelpDetailView({ initialRequest }: HelpDetailViewProps) {
               </p>
 
               {/* Reveal Contact Box */}
-              <div className="mt-4 p-5 rounded-xl bg-white border border-indigo-200/80 space-y-2">
+              <div className="mt-4 p-5 rounded-2xl bg-white border border-indigo-200/80 space-y-3">
                 <span className="font-mono text-[11px] uppercase tracking-[0.32em] text-neutral-500 block">
                   KONTAK PEMOHON BANTUAN:
                 </span>
                 <p className="font-mono text-base font-bold text-neutral-900 tracking-[0.2em]">
                   {revealedContact || request.contact}
                 </p>
-                {waLink && (
-                  <div className="pt-2">
+                <div className="pt-2 flex flex-wrap items-center gap-3">
+                  {waLink && (
                     <a
                       href={waLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-600 text-white font-mono text-xs uppercase tracking-[0.3em] hover:bg-emerald-700 transition-colors shadow-sm"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-600 text-white font-mono text-xs uppercase tracking-[0.25em] hover:bg-emerald-700 transition-colors shadow-sm"
                       onClick={() => track('whatsapp_click', { request_id: request.id })}
                     >
                       <span>💬 BUKA WHATSAPP LANGSUNG</span>
                     </a>
-                  </div>
-                )}
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleCopyContact}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-neutral-300 hover:border-neutral-800 bg-neutral-50 text-neutral-800 font-mono text-xs uppercase tracking-[0.25em] transition-colors cursor-pointer"
+                  >
+                    <span>{copied ? '✓ TERSALIN!' : '📋 SALIN KONTAK'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : isOwner ? (
@@ -250,7 +275,7 @@ export function HelpDetailView({ initialRequest }: HelpDetailViewProps) {
                 </div>
 
                 <button
-                  onClick={handleVolunteer}
+                  onClick={handleOpenVolunteerModal}
                   disabled={isSubmitting}
                   className="inline-flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-indigo-700 hover:bg-indigo-800 text-white font-mono text-xs uppercase tracking-[0.35em] font-semibold transition-all duration-300 ease-premium shadow-[0_4px_20px_rgba(67,56,202,0.25)] hover:scale-[1.02] cursor-pointer disabled:opacity-50"
                 >
@@ -274,6 +299,78 @@ export function HelpDetailView({ initialRequest }: HelpDetailViewProps) {
           )}
         </div>
       </article>
+
+      {/* Modal Dialog Konfirmasi Relawan */}
+      {showConfirmModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-900/60 backdrop-blur-sm animate-fade-in"
+        >
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-neutral-200 shadow-2xl space-y-6">
+            {/* Header Badge */}
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] uppercase tracking-[0.35em] text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full">
+                [KONFIRMASI RELAWAN]
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="text-neutral-400 hover:text-neutral-700 text-lg font-mono p-1 focus:outline-none cursor-pointer"
+                aria-label="Tutup dialog"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Title & Info */}
+            <div className="space-y-2">
+              <h3 className="font-serif text-2xl sm:text-3xl text-neutral-900 leading-snug">
+                Siap Menjadi Relawan untuk Warga Ini?
+              </h3>
+              <p className="text-xs sm:text-sm text-neutral-600 font-sans leading-relaxed">
+                Tindakan ini akan menandai status permohonan menjadi <strong>&quot;Selesai / Terbantu&quot;</strong> agar tidak terjadi tumpang tindih dengan relawan lain. Nomor kontak pemohon akan langsung dibuka untuk Anda hubungi via WhatsApp.
+              </p>
+            </div>
+
+            {/* Ringkasan Permohonan */}
+            <div className="p-4 rounded-2xl bg-[#faf9f5] border border-neutral-200 space-y-2 text-left font-sans text-xs">
+              <div className="flex items-center gap-2 text-neutral-500 font-mono text-[10px] uppercase tracking-wider">
+                <span>📍 {request.location}</span>
+                <span>•</span>
+                <span>🏷️ {request.category}</span>
+              </div>
+              <p className="font-medium text-neutral-800 text-sm line-clamp-2">
+                &ldquo;{request.title}&rdquo;
+              </p>
+            </div>
+
+            {/* Tombol Aksi */}
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                disabled={isSubmitting}
+                className="w-full sm:w-auto px-6 py-3 rounded-full border border-neutral-300 font-mono text-xs uppercase tracking-[0.25em] text-neutral-600 hover:border-neutral-900 hover:text-neutral-900 transition-colors cursor-pointer"
+              >
+                BATAL
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmVolunteer}
+                disabled={isSubmitting}
+                className="w-full sm:w-auto px-7 py-3 rounded-full bg-indigo-700 hover:bg-indigo-800 text-white font-mono text-xs uppercase tracking-[0.25em] font-semibold transition-all shadow-md hover:scale-[1.02] cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <span>MEMPROSES...</span>
+                ) : (
+                  <span>🤝 YA, SAYA SIAP MEMBANTU</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Back button */}
       <div className="mt-8 text-center">
