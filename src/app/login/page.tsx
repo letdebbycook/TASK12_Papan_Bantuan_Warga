@@ -38,14 +38,35 @@ function LoginFormContent() {
   };
 
   const handleAuthError = (err: unknown) => {
+    console.error('Supabase Auth Error:', err);
     const rawMessage = (err as { message?: string })?.message || '';
+
+    // Cek jika project belum menghubungkan env Supabase asli
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    if (!supabaseUrl || supabaseUrl.includes('placeholder')) {
+      toastError(
+        'Supabase Belum Dihubungkan',
+        'Kunci Supabase belum dimasukkan di Vercel. Harap atur NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY di Settings > Environment Variables Vercel.'
+      );
+      return;
+    }
+
     if (
+      rawMessage.toLowerCase().includes('failed to fetch') ||
+      rawMessage.toLowerCase().includes('network') ||
+      rawMessage.toLowerCase().includes('load failed')
+    ) {
+      toastError(
+        'Gagal Menghubungi Server',
+        'Tidak dapat terhubung ke Supabase. Pastikan URL Supabase di Vercel benar dan project Supabase aktif (tidak paused).'
+      );
+    } else if (
       rawMessage.includes('Invalid login credentials') ||
       rawMessage.includes('invalid_grant')
     ) {
       toastError(
         'Gagal Masuk',
-        'Kombinasi email atau kata sandi tidak sesuai. Silakan periksa kembali.'
+        'Email atau kata sandi tidak cocok. Jika Anda belum pernah mendaftar, silakan klik tab "DAFTAR BARU" terlebih dahulu.'
       );
     } else if (rawMessage.includes('User already registered')) {
       toastError(
@@ -60,10 +81,11 @@ function LoginFormContent() {
     } else {
       toastError(
         'Kendala Layanan',
-        'Terjadi gangguan saat memproses akun. Silakan coba kembali sesaat lagi.'
+        rawMessage || 'Terjadi gangguan saat memproses akun. Silakan coba kembali sesaat lagi.'
       );
     }
   };
+
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,16 +192,18 @@ function LoginFormContent() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto px-6 py-8">
-      {/* Brand Header */}
-      <div className="text-center mb-8">
-        <Link href="/" className="inline-block font-serif italic text-3xl font-bold text-neutral-900 mb-2">
-          WargaBantu
-        </Link>
-        <p className="font-mono text-xs uppercase tracking-[0.35em] text-neutral-400">
-          JARINGAN SOLIDARITAS WARGA
-        </p>
+
+    <div className="w-full max-w-md mx-auto px-6 py-4">
+
+      {/* Sub-header status badge */}
+      <div className="text-center mb-6">
+        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-neutral-300 bg-white/70 font-mono text-[10px] uppercase tracking-[0.35em] text-neutral-700 backdrop-blur-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-blink-dot" />
+          AUTENTIKASI WARGA
+        </span>
       </div>
+
+
 
       {/* Card Container */}
       <div className="border border-[#e5e5e5] rounded-3xl bg-white p-8 md:p-10 shadow-[0_10px_40px_rgba(0,0,0,0.02)]">
@@ -398,7 +422,8 @@ function LoginFormContent() {
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen pt-28 pb-16 flex flex-col justify-between">
+    <main className="min-h-screen pt-32 md:pt-36 pb-16 flex flex-col justify-between">
+
       <Suspense
         fallback={
           <div className="py-20 text-center font-mono text-xs uppercase tracking-[0.35em] text-neutral-400">
