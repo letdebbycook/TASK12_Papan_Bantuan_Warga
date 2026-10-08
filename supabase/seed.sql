@@ -15,7 +15,28 @@ DECLARE
   v_demo_user_3 UUID := 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33';
   v_helper_user UUID := 'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44';
 BEGIN
-  -- Insert dummy profiles jika tabel profiles ada
+  -- 1. Sisipkan user dummy ke auth.users terlebih dahulu agar lolos foreign key auth.users
+
+  INSERT INTO auth.users (
+    id,
+    instance_id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  ) VALUES 
+    (v_demo_user_1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'budi@wargabantu.test', '$2a$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM', now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Budi Santoso"}', now(), now()),
+    (v_demo_user_2, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'siti@wargabantu.test', '$2a$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM', now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Siti Rahmawati"}', now(), now()),
+    (v_demo_user_3, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'hendra@wargabantu.test', '$2a$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM', now(), '{"provider":"email","providers":["email"]}', '{"full_name":"dr. Hendra Wijaya"}', now(), now()),
+    (v_helper_user, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'relawan@wargabantu.test', '$2a$10$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM', now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Relawan Tanggap Merah Putih"}', now(), now())
+  ON CONFLICT (id) DO NOTHING;
+
+  -- 2. Insert dummy profiles
   INSERT INTO public.profiles (id, full_name, role)
   VALUES 
     (v_demo_user_1, 'Budi Santoso', 'user'),
@@ -23,6 +44,7 @@ BEGIN
     (v_demo_user_3, 'dr. Hendra Wijaya', 'user'),
     (v_helper_user, 'Relawan Tanggap Merah Putih', 'user')
   ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
+
 
   -- 1. Medis & Darurat - Padang
   INSERT INTO public.help_requests (
