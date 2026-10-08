@@ -34,12 +34,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const toast = useCallback(
     ({ type, title, message }: Omit<ToastItem, 'id'>) => {
-      const id = Math.random().toString(36).substring(2, 9);
-      setToasts((prev) => [...prev, { id, type, title, message }]);
+      setToasts((prev) => {
+        // Jangan tampilkan duplikat jika pesan yang sama persis sedang tayang
+        const hasDuplicate = prev.some((t) => t.title === title && t.message === message);
+        if (hasDuplicate) return prev;
 
-      setTimeout(() => {
-        removeToast(id);
-      }, 4500);
+        const id = Math.random().toString(36).substring(2, 9);
+        setTimeout(() => {
+          removeToast(id);
+        }, 4500);
+
+        // Batasi maksimal 3 toast sekaligus
+        const updated = [...prev, { id, type, title, message }];
+        if (updated.length > 3) {
+          return updated.slice(updated.length - 3);
+        }
+        return updated;
+      });
     },
     [removeToast]
   );

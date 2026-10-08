@@ -13,7 +13,7 @@ function LoginFormContent() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/bantuan';
 
-  const { success, error: toastError } = useToast();
+  const { success, error: toastError, info } = useToast();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [formData, setFormData] = useState({
@@ -24,6 +24,10 @@ function LoginFormContent() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showResendBanner, setShowResendBanner] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -64,14 +68,22 @@ function LoginFormContent() {
       rawMessage.includes('Invalid login credentials') ||
       rawMessage.includes('invalid_grant')
     ) {
+      setShowResendBanner(true);
       toastError(
         'Gagal Masuk',
-        'Email atau kata sandi tidak cocok. Jika Anda belum pernah mendaftar, silakan klik tab "DAFTAR BARU" terlebih dahulu.'
+        'Email atau kata sandi tidak cocok. Jika Anda baru mendaftar, pastikan email sudah diverifikasi via tautan email atau opsi "Confirm email" di Supabase dimatikan.'
+      );
+    } else if (rawMessage.toLowerCase().includes('email not confirmed')) {
+      setShowResendBanner(true);
+      toastError(
+        'Email Belum Diverifikasi',
+        'Silakan periksa kotak masuk atau spam email Anda untuk mengonfirmasi akun sebelum masuk.'
       );
     } else if (rawMessage.includes('User already registered')) {
+      setShowResendBanner(true);
       toastError(
         'Email Terdaftar',
-        'Alamat email ini sudah terdaftar. Silakan pilih tab Masuk.'
+        'Alamat email ini sudah terdaftar. Silakan pilih tab "MASUK" menggunakan kata sandi Anda.'
       );
     } else if (rawMessage.includes('Password should be at least')) {
       toastError(
@@ -86,6 +98,37 @@ function LoginFormContent() {
     }
   };
 
+  const handleResendConfirmation = async () => {
+    if (!formData.email) {
+      toastError('Email Diperlukan', 'Harap isi alamat email Anda terlebih dahulu.');
+      return;
+    }
+    setResending(true);
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: formData.email,
+        options: {
+          emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
+        },
+      });
+
+      if (error) {
+        handleAuthError(error);
+      } else {
+        info(
+          'Email Verifikasi Terkirim',
+          `Tautan verifikasi baru telah dikirim ke ${formData.email}. Silakan periksa kotak masuk atau folder spam Anda.`
+        );
+      }
+    } catch (err) {
+      handleAuthError(err);
+    } finally {
+      setResending(false);
+    }
+  };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,13 +186,15 @@ function LoginFormContent() {
 
       setLoading(true);
       try {
-        const { error } = await supabase.auth.signUp({
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        const { data, error } = await supabase.auth.signUp({
           email: result.data.email,
           password: result.data.password,
           options: {
             data: {
               full_name: result.data.fullName,
             },
+            emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
           },
         });
 
@@ -158,12 +203,34 @@ function LoginFormContent() {
           return;
         }
 
-        success(
-          'Pendaftaran Berhasil!',
-          'Akun warga Anda telah dibuat. Selamat bergabung dalam jejaring solidaritas.'
-        );
-        router.push(redirect);
-        router.refresh();
+        // Cek jika email sudah terdaftar (Supabase mengembalikan user dengan identities kosong jika email confirmation aktif)
+        if (data?.user && (!data.user.identities || data.user.identities.length === 0)) {
+          setShowResendBanner(true);
+          toastError(
+            'Email Sudah Terdaftar',
+            'Alamat email ini sudah terdaftar sebelumnya. Silakan masuk menggunakan kata sandi Anda di tab "MASUK".'
+          );
+          setMode('login');
+          return;
+        }
+
+        // Jika auto-confirm aktif di Supabase (session langsung ada)
+        if (data?.session) {
+          success(
+            'Pendaftaran Berhasil!',
+            'Akun warga Anda telah dibuat dan otomatis aktif. Selamat bergabung dalam jejaring solidaritas.'
+          );
+          router.push(redirect);
+          router.refresh();
+        } else {
+          // Jika Supabase mewajibkan konfirmasi email (session bernilai null)
+          setShowResendBanner(true);
+          info(
+            'Verifikasi Email Terkirim',
+            `Pendaftaran berhasil! Tautan konfirmasi telah dikirim ke ${result.data.email}. Silakan cek kotak masuk/spam untuk verifikasi sebelum masuk.`
+          );
+          setMode('login');
+        }
       } catch (err) {
         handleAuthError(err);
       } finally {
@@ -318,18 +385,37 @@ function LoginFormContent() {
             >
               KATA SANDI (MIN. 8 KARAKTER)
             </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              required
-              placeholder="••••••••"
-              value={formData.password}
-              onChange={handleChange}
-              className={`w-full bg-[#fcfbf9] border rounded-xl px-4 py-3 text-sm font-sans focus:outline-none focus:border-indigo-700 transition-colors ${
-                errors.password ? 'border-rose-400' : 'border-[#e5e5e5]'
-              }`}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="password"
+                name="password"
+                required
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={handleChange}
+                className={`w-full bg-[#fcfbf9] border rounded-xl px-4 py-3 pr-11 text-sm font-sans focus:outline-none focus:border-indigo-700 transition-colors ${
+                  errors.password ? 'border-rose-400' : 'border-[#e5e5e5]'
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1 focus:outline-none cursor-pointer"
+                aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+              >
+                {showPassword ? (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                )}
+              </button>
+            </div>
             {errors.password && (
               <p className="text-[11px] text-rose-600 font-sans">{errors.password}</p>
             )}
@@ -343,21 +429,62 @@ function LoginFormContent() {
               >
                 KONFIRMASI KATA SANDI
               </label>
-              <input
-                type="password"
-                id="confirmPassword"
-                name="confirmPassword"
-                required
-                placeholder="••••••••"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className={`w-full bg-[#fcfbf9] border rounded-xl px-4 py-3 text-sm font-sans focus:outline-none focus:border-indigo-700 transition-colors ${
-                  errors.confirmPassword ? 'border-rose-400' : 'border-[#e5e5e5]'
-                }`}
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  required
+                  placeholder="••••••••"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className={`w-full bg-[#fcfbf9] border rounded-xl px-4 py-3 pr-11 text-sm font-sans focus:outline-none focus:border-indigo-700 transition-colors ${
+                    errors.confirmPassword ? 'border-rose-400' : 'border-[#e5e5e5]'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1 focus:outline-none cursor-pointer"
+                  aria-label={showConfirmPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                >
+                  {showConfirmPassword ? (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               {errors.confirmPassword && (
                 <p className="text-[11px] text-rose-600 font-sans">{errors.confirmPassword}</p>
               )}
+            </div>
+          )}
+
+          {showResendBanner && (
+            <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-2xl text-left space-y-2.5">
+              <div className="flex items-start gap-2">
+                <span className="text-amber-700 text-sm mt-0.5">💡</span>
+                <div className="text-[11px] text-amber-900 leading-relaxed font-sans">
+                  <strong>Petunjuk Verifikasi Akun:</strong>
+                  <p className="mt-0.5 text-amber-800">
+                    Bila akun belum diverifikasi, Anda belum dapat masuk. Cek email (termasuk folder spam) atau kirim ulang tautan di bawah. Jika menggunakan Supabase sendiri, matikan opsi <em>Confirm email</em> di dashboard Supabase agar dapat langsung login.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={resending || !formData.email}
+                className="w-full py-2.5 px-3 text-[10px] font-mono uppercase tracking-[0.2em] font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 text-white transition-colors disabled:opacity-50 cursor-pointer text-center shadow-sm"
+              >
+                {resending ? 'MENGIRIMKAN TAUTAN...' : 'KIRIM ULANG TAUTAN VERIFIKASI ✉️'}
+              </button>
             </div>
           )}
 
